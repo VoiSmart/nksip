@@ -105,8 +105,8 @@ new(Host, MediaSpecList) ->
     Address = {<<"IN">>, <<"IP4">>, nklib_util:to_host(Host)},
 
     HostsInAttributes = lists:flatten([[H || {connect, H} <- A]|| {_, _, A} <- MediaSpecList]),
-    case HostsInAttributes of
-      [] -> #sdp{
+    case length(HostsInAttributes) == length(MediaSpecList) of
+      false -> #sdp{
                id = Now,
                vsn = Now,
                connect = Address,
@@ -713,7 +713,52 @@ sdp4_test() ->
     ?assertMatch(Bin, unparse(SDP)),
     ?assertMatch(SDP, parse(Bin)).
 
+sdp5_test() ->
+    Media = [
+        {<<"audio">>, 10000, [{rtpmap, 0, "Params0"}, {rtpmap, 1, "Params1"}, sendrecv, {connect, <<"domain1">>}]},
+        {<<"video">>, 10001, [{rtpmap, 2, "Params2"}, {rtpmap, 3, "Params3"}, sendrecv]}
+    ],
+    #sdp{id=Id, vsn=Vsn} = SDP = new("local", Media),
+    Bin = list_to_binary([
+        "v=0\r\n"
+        "o=- ", integer_to_list(Id), " ", integer_to_list(Vsn), " IN IP4 local\r\n"
+        "s=nksip\r\n"
+        "c=IN IP4 local\r\n"
+        "t=0 0\r\n"
+        "m=audio 10000 RTP/AVP 0 1\r\n"
+        "c=IN IP4 domain1\r\n"
+        "a=rtpmap:0 Params0\r\n"
+        "a=rtpmap:1 Params1\r\n"
+        "a=sendrecv\r\n"
+        "m=video 10001 RTP/AVP 2 3\r\n"
+        "a=rtpmap:2 Params2\r\n"
+        "a=rtpmap:3 Params3\r\n"
+        "a=sendrecv\r\n"
+    ]),
+    ?assertMatch(Bin, unparse(SDP)).
 
-
+sdp6_test() ->
+    Media = [
+        {<<"audio">>, 10000, [{rtpmap, 0, "Params0"}, {rtpmap, 1, "Params1"}, sendrecv, {connect, <<"domain1">>}]},
+        {<<"video">>, 10001, [{rtpmap, 2, "Params2"}, {rtpmap, 3, "Params3"}, sendrecv, {connect, <<"domain2">>}]}
+    ],
+    #sdp{id=Id, vsn=Vsn} = SDP = new("local", Media),
+    Bin = list_to_binary([
+        "v=0\r\n"
+        "o=- ", integer_to_list(Id), " ", integer_to_list(Vsn), " IN IP4 local\r\n"
+        "s=nksip\r\n"
+        "t=0 0\r\n"
+        "m=audio 10000 RTP/AVP 0 1\r\n"
+        "c=IN IP4 domain1\r\n"
+        "a=rtpmap:0 Params0\r\n"
+        "a=rtpmap:1 Params1\r\n"
+        "a=sendrecv\r\n"
+        "m=video 10001 RTP/AVP 2 3\r\n"
+        "c=IN IP4 domain2\r\n"
+        "a=rtpmap:2 Params2\r\n"
+        "a=rtpmap:3 Params3\r\n"
+        "a=sendrecv\r\n"
+    ]),
+    ?assertMatch(Bin, unparse(SDP)).
 
 -endif.
