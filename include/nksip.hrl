@@ -239,10 +239,10 @@
     nports = 1 :: integer(),
     proto = <<"RTP/AVP">> :: binary(),
     fmt = [] :: [binary()],             % <<"0">>, <<"101">> ...
-    info :: binary(),
+    info :: binary() | undefined,
     connect = [] :: [nksip_sdp:address()],
     bandwidth = [] :: [binary()],
-    key :: binary(),
+    key :: binary() | undefined,
     attributes = [] :: [nksip_sdp:sdp_a()]
 }).
 
