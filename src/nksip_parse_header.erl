@@ -41,8 +41,8 @@
 %% ===================================================================
 
 
-%% @doc Parses a header value. 
-%% If Name is binary(), it will is supposed it is canonical; if not sure, 
+%% @doc Parses a header value.
+%% If Name is binary(), it will is supposed it is canonical; if not sure,
 %% call `name(Name)'. If it is a string() or atom(), it is  converted to canonical form.
 %% Throws {invalid, Name} in case of invalid header.
 -spec parse(binary(), term()) ->
@@ -58,7 +58,7 @@ parse(Name, Value) when is_binary(Name) ->
     end.
 
 
-%% @doc Parses a header value. 
+%% @doc Parses a header value.
 %% Similar to `parse/2', but updates the #sipmsg{}.
 -spec parse(binary(), term(), #sipmsg{}, insert|replace|add) ->
     {binary(), term()} | #sipmsg{}.
@@ -66,7 +66,7 @@ parse(Name, Value) when is_binary(Name) ->
 parse(Name, Value, #sipmsg{}=Req, Policy) when is_binary(Name)->
     try
         case header(Name, Value) of
-            {Result, Pos} when is_integer(Pos) -> 
+            {Result, Pos} when is_integer(Pos) ->
                 Result1 = case Name of
                     <<"from">> ->
                         update_tag(Result, Req#sipmsg.from);
@@ -119,11 +119,11 @@ headers([], Req, _Policy) ->
     Req;
 
 headers([{<<"body">>, Value}|Rest], Req, Policy) ->
-    Body1 = list_to_binary(uri_string:decode(nklib_util:to_list(Value))),
+    Body1 = list_to_binary(uri_string:unquote(nklib_util:to_list(Value))),
     headers(Rest, Req#sipmsg{body=Body1}, Policy);
 
 headers([{Name, Value}|Rest], Req, Policy) ->
-    Value1 = uri_string:decode(nklib_util:to_list(Value)),
+    Value1 = uri_string:unquote(nklib_util:to_list(Value)),
     Req1 = parse(Name, Value1, Req, Policy),
     headers(Rest, Req1, Policy);
 
@@ -133,26 +133,26 @@ headers(_, _, _) ->
 
 
 %% @private
-header(<<"from">>, Value) -> 
+header(<<"from">>, Value) ->
     From = single_uri(Value),
     FromTag = nklib_util:get_value(<<"tag">>, From#uri.ext_opts, <<>>),
     {{From, FromTag}, #sipmsg.from};
 
-header(<<"to">>, Value) -> 
+header(<<"to">>, Value) ->
     To = single_uri(Value),
     ToTag = nklib_util:get_value(<<"tag">>, To#uri.ext_opts, <<>>),
     {{To, ToTag}, #sipmsg.to};
 
-header(<<"via">>, Value) -> 
+header(<<"via">>, Value) ->
     {vias(Value), #sipmsg.vias};
 
-header(<<"cseq">>, Value) -> 
+header(<<"cseq">>, Value) ->
     {cseq(Value), #sipmsg.cseq};
 
-header(<<"max-forwards">>, Value) -> 
+header(<<"max-forwards">>, Value) ->
     {integer(Value, 0, 300), #sipmsg.forwards};
 
-header(<<"call-id">>, Value) -> 
+header(<<"call-id">>, Value) ->
     case nklib_util:to_binary(Value) of
         <<>> ->
             throw(invalid);
@@ -180,7 +180,7 @@ header(<<"expires">>, Value) ->
 
 header(<<"content-type">>, Value) ->
     {single_token(Value), #sipmsg.content_type};
-    
+
 header(<<"require">>, Value) ->
     {names(Value), #sipmsg.require};
 
@@ -192,7 +192,7 @@ header(<<"event">>, Value) ->
 
 header(<<"reason">>, Value) ->
     case is_binary(Value) of
-        true -> 
+        true ->
             {Value, add};
         false ->
             case nksip_unparse:error_reason(Value) of
@@ -260,14 +260,14 @@ names(Data) ->
 
 cseq(Data) ->
     case nklib_util:words(Data) of
-        [CSeq, Method] ->                
+        [CSeq, Method] ->
             case nklib_util:to_integer(CSeq) of
                 Int when is_integer(Int), Int>=0, Int<4294967296 ->
                     {Int, nksip_parse:method(Method)};
                 _ ->
                     throw(invalid)
             end;
-        _ -> 
+        _ ->
             throw(invalid)
     end.
 
@@ -281,7 +281,7 @@ integer(Data, Min, Max) ->
 
 
 %% @private
-update_tag({Value, <<>>}, {_, <<>>}) -> 
+update_tag({Value, <<>>}, {_, <<>>}) ->
     {Value, <<>>};
 
 update_tag({#uri{ext_opts=ExtOpts}=Value, <<>>}, {_, Tag}) ->
@@ -297,21 +297,21 @@ update_tag({Value, Tag}, _) ->
     binary().
 
 name(Name) when is_binary(Name) ->
-    << 
-        << (case Ch>=$A andalso Ch=<$Z of true -> Ch+32; false -> Ch end) >> 
-        || << Ch >> <= Name 
+    <<
+        << (case Ch>=$A andalso Ch=<$Z of true -> Ch+32; false -> Ch end) >>
+        || << Ch >> <= Name
     >>;
 
 name(Name) when is_atom(Name) ->
     List = [
-        case Ch of 
+        case Ch of
             $_ ->
                 $-;
             _ when Ch>=$A, Ch=<$Z ->
                 Ch+32;
             _ ->
                 Ch
-        end 
+        end
         || Ch <- atom_to_list(Name)
     ],
     list_to_binary(List);
@@ -474,7 +474,7 @@ name(Name) when is_list(Name) ->
 -include_lib("eunit/include/eunit.hrl").
 
 uri_test() ->
-    Uri = 
+    Uri =
         "<sip:host?FROM=sip:u1%40from&to=sip:to&contact=sip:a"
         "&user1=data1&call-ID=abc&user-Agent=user"
         "&content-type = application/sdp"
@@ -495,7 +495,7 @@ uri_test() ->
     Req1 = headers(UriHeaders, Base, add),
     #sipmsg{
         vias = [],
-        from = {#uri{disp = <<>>, scheme = sip, user = <<"u1">>, domain = <<"from">>, 
+        from = {#uri{disp = <<>>, scheme = sip, user = <<"u1">>, domain = <<"from">>,
                     ext_opts = [{<<"tag">>, <<"f">>}]}, <<"f">>},
         to = {#uri{domain = <<"to">>, ext_opts = [{<<"tag">>, <<"t">>}]}, <<"t">>},
         call_id = <<"abc">>,
@@ -549,5 +549,5 @@ uri_test() ->
         ]
     } = Req3,
     ok.
-       
+
 -endif.

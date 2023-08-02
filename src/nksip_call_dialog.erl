@@ -571,8 +571,8 @@ do_timer(invite_refresh, #dialog{invite=Invite}=Dialog, Call) ->
 
 do_timer(invite_timeout, #dialog{id=DialogId, invite=Invite}=Dialog, Call) ->
     case Invite of
-        #invite{class=Class} ->
-            ?CALL_LOG(notice, "Dialog ~s (~p) timeout timer fired", [DialogId, Invite#invite.status]),
+        #invite{class=Class, status=Status} when Status /= bye, Status /= proceeding_uac, Status /= proceeding_uas ->
+            ?CALL_LOG(notice, "Dialog ~s (~p) timeout timer fired", [DialogId, Invite#invite.status], Call),
             case Class of
                 proxy ->
                     update({invite, {stop, timeout}}, Dialog, Call);
@@ -590,6 +590,12 @@ do_timer(invite_timeout, #dialog{id=DialogId, invite=Invite}=Dialog, Call) ->
                             update({invite, {stop, timeout}}, Dialog, Call)
                     end
             end;
+        #invite{status=bye} ->
+            ?CALL_LOG(warning, "Timeout in bye state - end the dialog ~p", [DialogId], Call),
+            update({invite, {stop, timeout}}, Dialog, Call);
+        #invite{status=Status} when Status == proceeding_uac; Status == proceeding_uas ->
+            ?CALL_LOG(notice, "Dialog ~s timeout in proceeding state - ignored", [DialogId], Call),
+            Call;
         _ ->
             ?CALL_LOG(notice, "Dialog ~s unknown INVITE timeout timer", [DialogId]),
             Call

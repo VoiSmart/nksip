@@ -33,14 +33,14 @@
 %% Types
 %% ===================================================================
 
--type address() :: 
+-type address() ::
                     {
                         Type :: binary(),       % <<"IN">>
                         AddrType :: binary(),   % <<"IP4">> or <<"IP6">>
                         Addr :: binary()
                     }.
 
--type sdp_a() :: {Attribute::binary(), Values::[binary()]}. 
+-type sdp_a() :: {Attribute::binary(), Values::[binary()]}.
 
 -type sdp_t() :: {Start::integer(), Stop::integer(), Reps::[binary()]}.
 
@@ -52,8 +52,8 @@
 
 -type media_spec() :: {
                         Media :: binary(),              % <<"audio">>, <<"video">>
-                        Port :: inet:port_number(), 
-                        Attributes :: 
+                        Port :: inet:port_number(),
+                        Attributes ::
                             [{rtpmap, Pos::integer(), Data::binary()} | binary()]
                     }.
 
@@ -62,13 +62,13 @@
 %% Public
 %% ===================================================================
 
-%% @doc Generates a simple base SDP record. 
+%% @doc Generates a simple base SDP record.
 %%
 %  It will use the indicated `Host' and a `Medias' description
 %% to generate a new `sdp()' record, having several 'm' sections,
-%% one for each media. 
+%% one for each media.
 %%
-%% Each media must define a `Media' (like `<<"audio">>' or `<<"video">>'), 
+%% Each media must define a `Media' (like `<<"audio">>' or `<<"video">>'),
 %% a `Port' and a list of `Attributes'. Each attributes can have the form
 %% `{rtpmap, Pos, Data}' to define a codec (like `{rtpmap, 0, <<"PCMU/8000">>}')
 %% or a standard SDP 'a' attribute (like `<<"inactive">>' or `<<"ptime:30">>').
@@ -79,40 +79,51 @@
 %%
 %% See sdp3_test/0 for an example.
 %%
--spec new(string()|binary(), Medias::[media_spec()]) -> 
+-spec new(string()|binary(), Medias::[media_spec()]) ->
     sdp().
-    
+
 new(Host, MediaSpecList) ->
     Now = nklib_util:timestamp(),
     Medias = [
         #sdp_m{
-            media = nklib_util:to_binary(Media), 
+            media = nklib_util:to_binary(Media),
             port = Port,
             fmt = [nklib_util:to_binary(Pos) || {rtpmap, Pos, _} <- Attributes],
+            connect = [{<<"IN">>, <<"IP4">>, nklib_util:to_host(MediaHost)} || {connect, MediaHost} <- Attributes],
             attributes = [
                     case Attr of
                         {rtpmap, Pos, Data} ->
-                            {<<"rtpmap">>, 
+                            {<<"rtpmap">>,
                                 [nklib_util:to_binary(Pos), nklib_util:to_binary(Data)]};
                         Other ->
                             parse_sdp_a(nklib_util:to_binary(Other))
                     end
-                    || Attr <- Attributes]
+                    || Attr <- lists:filter(fun ({connect, _}) -> false; (_) -> true end, Attributes)]
         }
         || {Media, Port, Attributes} <- MediaSpecList
     ],
     Address = {<<"IN">>, <<"IP4">>, nklib_util:to_host(Host)},
-    #sdp{
-        id = Now, 
-        vsn = Now, 
-        address = Address,
-        connect = Address,
-        time = [{0, 0, []}],
-        medias = Medias
-    }.
 
+    HostsInAttributes = lists:flatten([[H || {connect, H} <- A]|| {_, _, A} <- MediaSpecList]),
+    case length(HostsInAttributes) == length(MediaSpecList) of
+      false -> #sdp{
+               id = Now,
+               vsn = Now,
+               connect = Address,
+               address = Address,
+               time = [{0, 0, []}],
+               medias = Medias
+              };
+      _ -> #sdp{
+              id = Now,
+              vsn = Now,
+              address = Address,
+              time = [{0, 0, []}],
+              medias = Medias
+             }
+    end.
 
-%% @doc Generates a simple base SDP record (see {@link new/2}), 
+%% @doc Generates a simple base SDP record (see {@link new/2}),
 %% using host `"auto.nksip"', port <i>1080</i>, codec <i>PCMU</i>, and <i>inactive</i>
 -spec new() ->
     sdp().
@@ -138,7 +149,7 @@ increment(#sdp{vsn=Vsn}=SDP) ->
     SDP#sdp{vsn=Vsn+1}.
 
 
-%% @doc Updates and SDP changing all medias to `inactive', `recvonly', 
+%% @doc Updates and SDP changing all medias to `inactive', `recvonly',
 %% `sendonly' or `sendrecv' and incrementing the SDP version.
 -spec update(sdp(), media_status()) ->
     sdp().
@@ -152,7 +163,7 @@ update_state([], _State, Acc) ->
     lists:reverse(Acc);
 
 update_state([#sdp_m{attributes=Attrs}=SDPM|Rest], State, Acc) ->
-    Attrs1 = nklib_util:delete(Attrs, [<<"inactive">>, <<"recvonly">>, <<"sendonly">>, 
+    Attrs1 = nklib_util:delete(Attrs, [<<"inactive">>, <<"recvonly">>, <<"sendonly">>,
                                         <<"sendrecv">>]),
     Attrs2 = Attrs1 ++ [{nklib_util:to_binary(State), []}],
     update_state(Rest, State, [SDPM#sdp_m{attributes=Attrs2}|Acc]).
@@ -177,7 +188,7 @@ is_new(_, _) -> false.
 
 
 %% @doc Parses a binary SDP packet into a `sdp()' record or `error'
--spec parse(binary()) -> 
+-spec parse(binary()) ->
     sdp() | error.
 
 parse(Bin) ->
@@ -197,15 +208,15 @@ parse(Bin) ->
 
 
 %% @doc Generates a binary SDP packet from an `sdp()' record
--spec unparse(sdp()) -> 
+-spec unparse(sdp()) ->
     binary().
 
 unparse(#sdp{}=SDP) ->
     {OType, OAddrType, OAddress} = SDP#sdp.address,
     list_to_binary([
         $v, $=, SDP#sdp.sdp_vsn, 13, 10,
-        $o, $=, SDP#sdp.user, 32, nklib_util:to_binary(SDP#sdp.id), 32, 
-            nklib_util:to_binary(SDP#sdp.vsn), 32, OType, 32, OAddrType, 32, 
+        $o, $=, SDP#sdp.user, 32, nklib_util:to_binary(SDP#sdp.id), 32,
+            nklib_util:to_binary(SDP#sdp.vsn), 32, OType, 32, OAddrType, 32,
             OAddress, 13, 10,
         $s, $=, SDP#sdp.session, 13, 10,
         case SDP#sdp.info of
@@ -232,16 +243,16 @@ unparse(#sdp{}=SDP) ->
             P ->
                 [$p, $=, P, 13, 10]
         end,
-        case SDP#sdp.connect of 
-            undefined -> 
-                []; 
-            {CType, CAddrType, CAddress} -> 
+        case SDP#sdp.connect of
+            undefined ->
+                [];
+            {CType, CAddrType, CAddress} ->
                 [$c, $=, CType, 32, CAddrType, 32, CAddress, 13, 10]
         end,
         [[$b, $=, B, 13, 10] || B <- SDP#sdp.bandwidth],
         [
             [
-                $t, $=, integer_to_list(Start), 32, integer_to_list(Stop), 13, 10, 
+                $t, $=, integer_to_list(Start), 32, integer_to_list(Stop), 13, 10,
                 [[$r, $=, R, 13, 10] || R <- Reps]
             ]
             || {Start, Stop, Reps} <- SDP#sdp.time
@@ -265,12 +276,12 @@ unparse(#sdp{}=SDP) ->
                 _ ->
                     [$a, $=, Attr, $:, join(Values), 13, 10]
             end
-            || {Attr, Values} <- SDP#sdp.attributes 
+            || {Attr, Values} <- SDP#sdp.attributes
         ],
         [
             [
-                $m, $=, Media#sdp_m.media, 32, integer_to_list(Media#sdp_m.port), 
-                case Media#sdp_m.nports of 
+                $m, $=, Media#sdp_m.media, 32, integer_to_list(Media#sdp_m.port),
+                case Media#sdp_m.nports of
                     1 ->
                         [];
                     NPorts ->
@@ -284,28 +295,28 @@ unparse(#sdp{}=SDP) ->
                         [32, join(Fmt)]
                 end,
                 13, 10,
-                case Media#sdp_m.info of 
+                case Media#sdp_m.info of
                     undefined ->
                         [];
                     MI ->
                         [$i, $=, MI, 13, 10] end,
-                case Media#sdp_m.connect of 
-                    undefined -> 
-                        []; 
-                    {MType, MAddrType, MAddress} -> 
+                case Media#sdp_m.connect of
+                    [] ->
+                        [];
+                    [{MType, MAddrType, MAddress}] ->
                         [$c, $=, MType, 32, MAddrType, 32, MAddress, 13, 10]
                 end,
                 [[$b, $=, MB, 13, 10] || MB <- Media#sdp_m.bandwidth],
-                case Media#sdp_m.key of 
+                case Media#sdp_m.key of
                     undefined ->
                         [];
                     MK ->
                         [$k, $=, MK, 13, 10] end,
                 [
                     case MValues of
-                        [] -> 
+                        [] ->
                             [$a, $=, MAttr, 13, 10];
-                        _ -> 
+                        _ ->
                             [$a, $=, MAttr, $:, join(MValues), 13, 10]
                     end
                     || {MAttr, MValues} <- Media#sdp_m.attributes
@@ -344,7 +355,7 @@ update_ip(#sdp{connect = {_, _, <<"auto.nksip">>}} = SDP, ListenAddr) ->
                     Ip = {0,0,0,0}, Class = <<"IP4">>
             end
     end,
-    Addr = {<<"IN">>, Class, nklib_util:to_host(Ip, false)}, 
+    Addr = {<<"IN">>, Class, nklib_util:to_host(Ip, false)},
     SDP#sdp{address=Addr, connect=Addr};
 
 update_ip(Any, _) ->
@@ -355,10 +366,10 @@ update_ip(Any, _) ->
 -spec parse_sdp(atom(), [{atom(), binary()}], sdp()) ->
     sdp().
 
-parse_sdp(v, [{$v, V}|R], SDP) -> 
+parse_sdp(v, [{$v, V}|R], SDP) ->
     parse_sdp(o, R, SDP#sdp{sdp_vsn=V});
-parse_sdp(o, [{$o, O}|R], SDP) -> 
-    [UserName, BinId, BinVsn, Type, AddrType, Address] 
+parse_sdp(o, [{$o, O}|R], SDP) ->
+    [UserName, BinId, BinVsn, Type, AddrType, Address]
         = binary:split(O, <<" ">>, [global]),
     SDP1 = SDP#sdp{
         user = UserName,
@@ -367,32 +378,32 @@ parse_sdp(o, [{$o, O}|R], SDP) ->
         address = {Type, AddrType, Address}
     },
     parse_sdp(s, R, SDP1);
-parse_sdp(s, [{$s, S}|R], SDP) -> 
+parse_sdp(s, [{$s, S}|R], SDP) ->
     parse_sdp(i, R, SDP#sdp{session=S});
-parse_sdp(i, [{$i, I}|R], SDP) -> 
+parse_sdp(i, [{$i, I}|R], SDP) ->
     parse_sdp(u, R, SDP#sdp{info=I});
-parse_sdp(i, R, SDP) -> 
+parse_sdp(i, R, SDP) ->
     parse_sdp(u, R, SDP);
-parse_sdp(u, [{$u, U}|R], SDP) -> 
+parse_sdp(u, [{$u, U}|R], SDP) ->
     parse_sdp(e, R, SDP#sdp{uri=U});
-parse_sdp(u, R, SDP) -> 
+parse_sdp(u, R, SDP) ->
     parse_sdp(e, R, SDP);
-parse_sdp(e, [{$e, E}|R], SDP) -> 
+parse_sdp(e, [{$e, E}|R], SDP) ->
     parse_sdp(p, R, SDP#sdp{email=E});
-parse_sdp(e, R, SDP) -> 
+parse_sdp(e, R, SDP) ->
     parse_sdp(p, R, SDP);
-parse_sdp(p, [{$p, P}|R], SDP) -> 
+parse_sdp(p, [{$p, P}|R], SDP) ->
     parse_sdp(c, R, SDP#sdp{phone=P});
-parse_sdp(p, R, SDP) -> 
+parse_sdp(p, R, SDP) ->
     parse_sdp(c, R, SDP);
-parse_sdp(c, [{$c, C}|R], SDP) -> 
+parse_sdp(c, [{$c, C}|R], SDP) ->
     [Type, AddrType, Address] = binary:split(C, <<" ">>, [global]),
     parse_sdp(b, R, SDP#sdp{connect={Type, AddrType, Address}});
-parse_sdp(c, R, SDP) -> 
+parse_sdp(c, R, SDP) ->
     parse_sdp(b, R, SDP);
-parse_sdp(b, [{$b, B}|R], SDP) -> 
+parse_sdp(b, [{$b, B}|R], SDP) ->
     parse_sdp(b, R, SDP#sdp{bandwidth=[B|SDP#sdp.bandwidth]});
-parse_sdp(b, R, SDP) -> 
+parse_sdp(b, R, SDP) ->
     parse_sdp(t, R, SDP#sdp{bandwidth=lists:reverse(SDP#sdp.bandwidth)});
 parse_sdp(t, [{$t, T}|R], SDP) ->
     [BinStart, BinStop] = binary:split(T, <<" ">>),
@@ -402,21 +413,21 @@ parse_sdp(t, [{$t, T}|R], SDP) ->
     parse_sdp(t, R1, SDP#sdp{time=[{Start, Stop, Reps}|SDP#sdp.time]});
 parse_sdp(t, R, SDP) ->
     parse_sdp(z, R, SDP#sdp{time=lists:reverse(SDP#sdp.time)});
-parse_sdp(z, [{$z, Z}|R], SDP) -> 
+parse_sdp(z, [{$z, Z}|R], SDP) ->
     parse_sdp(k, R, SDP#sdp{zone=Z});
-parse_sdp(z, R, SDP) -> 
+parse_sdp(z, R, SDP) ->
     parse_sdp(k, R, SDP);
-parse_sdp(k, [{$k, K}|R], SDP) -> 
+parse_sdp(k, [{$k, K}|R], SDP) ->
     parse_sdp(a, R, SDP#sdp{key=K});
-parse_sdp(k, R, SDP) -> 
+parse_sdp(k, R, SDP) ->
     parse_sdp(a, R, SDP);
-parse_sdp(a, [{$a, A}|R], SDP) -> 
+parse_sdp(a, [{$a, A}|R], SDP) ->
     Attr = parse_sdp_a(A),
     parse_sdp(a, R, SDP#sdp{attributes=[Attr|SDP#sdp.attributes]});
 % Hack to accept b= inside a= (Freeswitch)
-parse_sdp(a, [{$b, B}|R], SDP) -> 
+parse_sdp(a, [{$b, B}|R], SDP) ->
     parse_sdp(a, R, SDP#sdp{bandwidth=[B|SDP#sdp.bandwidth]});
-parse_sdp(a, R, SDP) -> 
+parse_sdp(a, R, SDP) ->
     parse_sdp(m, R, SDP#sdp{attributes=lists:reverse(SDP#sdp.attributes)});
 parse_sdp(m, [{$m, M}|R], SDP) ->
     [Media, Ports, Proto|Format] = binary:split(M, <<" ">>, [global]),
@@ -433,7 +444,7 @@ parse_sdp(m, [{$m, M}|R], SDP) ->
     parse_sdp(m, R1, SDP#sdp{medias=[M2|SDP#sdp.medias]});
 parse_sdp(m, [], SDP) ->
     SDP#sdp{medias=lists:reverse(SDP#sdp.medias)};
-parse_sdp(K, R, SDP) -> 
+parse_sdp(K, R, SDP) ->
     throw({K, R, SDP}).
 
 
@@ -441,9 +452,9 @@ parse_sdp(K, R, SDP) ->
 -spec parse_sdp_t([{atom(), binary()}], [binary()]) ->
     {[binary()], [{atom(), binary()}]}.
 
-parse_sdp_t([{$r, Rep}|R], Acc) -> 
+parse_sdp_t([{$r, Rep}|R], Acc) ->
     parse_sdp_t(R, [Rep|Acc]);
-parse_sdp_t(R, Acc) -> 
+parse_sdp_t(R, Acc) ->
     {lists:reverse(Acc), R}.
 
 
@@ -457,8 +468,8 @@ parse_sdp_m(i, R, SDPM) ->
     parse_sdp_m(c, R, SDPM);
 parse_sdp_m(c, [{$c, C}|R], SDPM) ->
     [Type, AddrType, Address] = binary:split(C, <<" ">>, [global]),
-    parse_sdp_m(b, R, SDPM#sdp_m{connect={Type, AddrType, Address}});
-parse_sdp_m(c, R, SDPM) -> 
+    parse_sdp_m(b, R, SDPM#sdp_m{connect=[{Type, AddrType, Address}]});
+parse_sdp_m(c, R, SDPM) ->
     parse_sdp_m(b, R, SDPM);
 parse_sdp_m(b, [{$b, B}|R], SDPM) ->
     parse_sdp_m(b, R, SDPM#sdp_m{bandwidth=[B|SDPM#sdp_m.bandwidth]});
@@ -545,7 +556,7 @@ sdp1_test() ->
     ?assertMatch(
         #sdp{
         sdp_vsn = <<"0">>,
-        user = <<"-">>, 
+        user = <<"-">>,
         id = 31726,
         vsn = 1,
         address = {<<"IN">>, <<"IP4">>, <<"130.117.91.40">>},
@@ -573,7 +584,7 @@ sdp1_test() ->
                 proto = <<"RTP/AVP">>,
                 fmt = [<<"0">>, <<"101">>],
                 info = <<"I2">>,
-                connect = {<<"IN">>, <<"IP4">> ,<<"130.117.91.41">>},
+                connect = [{<<"IN">>, <<"IP4">> ,<<"130.117.91.41">>}],
                 attributes = [
                     {<<"rtcp">>, [<<"1500">>]},
                     {<<"rtpmap">>, [<<"0">>]},
@@ -636,7 +647,7 @@ sdp2_test() ->
             connect = {<<"IN">>, <<"IP4">>, <<"4.3.2.1">>},
             bandwidth = [<<"B1">>, <<"B2">>],
             time = [
-                        {1, 2, [<<"T1R1">>, <<"T1R2">>]}, 
+                        {1, 2, [<<"T1R1">>, <<"T1R2">>]},
                         {3, 4, [<<"T2R1">>, <<"T2R2">>]}
                     ],
             zone = <<"Z">>,
@@ -644,19 +655,19 @@ sdp2_test() ->
             attributes = [{<<"prea1">>, []}, {<<"prea2">>, [<<"value">>, <<"a2">>]}],
             medias = [
                 #sdp_m{
-                    media = <<"class0">>, 
-                    port = 1234, 
-                    nports = 1, 
+                    media = <<"class0">>,
+                    port = 1234,
+                    nports = 1,
                     proto = <<"transp0">>,
                     fmt = [<<"1">>, <<"2">>, <<"3">>],
                     info = <<"M1I">>,
-                    connect = {<<"IN">>, <<"IP4">>, <<"5.6.7.8">>},
+                    connect = [{<<"IN">>, <<"IP4">>, <<"5.6.7.8">>}],
                     bandwidth = [<<"M1B1">>,<<"M1B2">>],
                     key = <<"M1K">>,
                     attributes = [{<<"M1A1">>, []}, {<<"M1A2">>, []}]
                 },
                 #sdp_m{
-                    media = <<"class2">>, 
+                    media = <<"class2">>,
                     port = 4321,
                     nports = 2,
                     proto = <<"transp1">>,
@@ -702,9 +713,52 @@ sdp4_test() ->
     ?assertMatch(Bin, unparse(SDP)),
     ?assertMatch(SDP, parse(Bin)).
 
+sdp5_test() ->
+    Media = [
+        {<<"audio">>, 10000, [{rtpmap, 0, "Params0"}, {rtpmap, 1, "Params1"}, sendrecv, {connect, <<"domain1">>}]},
+        {<<"video">>, 10001, [{rtpmap, 2, "Params2"}, {rtpmap, 3, "Params3"}, sendrecv]}
+    ],
+    #sdp{id=Id, vsn=Vsn} = SDP = new("local", Media),
+    Bin = list_to_binary([
+        "v=0\r\n"
+        "o=- ", integer_to_list(Id), " ", integer_to_list(Vsn), " IN IP4 local\r\n"
+        "s=nksip\r\n"
+        "c=IN IP4 local\r\n"
+        "t=0 0\r\n"
+        "m=audio 10000 RTP/AVP 0 1\r\n"
+        "c=IN IP4 domain1\r\n"
+        "a=rtpmap:0 Params0\r\n"
+        "a=rtpmap:1 Params1\r\n"
+        "a=sendrecv\r\n"
+        "m=video 10001 RTP/AVP 2 3\r\n"
+        "a=rtpmap:2 Params2\r\n"
+        "a=rtpmap:3 Params3\r\n"
+        "a=sendrecv\r\n"
+    ]),
+    ?assertMatch(Bin, unparse(SDP)).
 
-
+sdp6_test() ->
+    Media = [
+        {<<"audio">>, 10000, [{rtpmap, 0, "Params0"}, {rtpmap, 1, "Params1"}, sendrecv, {connect, <<"domain1">>}]},
+        {<<"video">>, 10001, [{rtpmap, 2, "Params2"}, {rtpmap, 3, "Params3"}, sendrecv, {connect, <<"domain2">>}]}
+    ],
+    #sdp{id=Id, vsn=Vsn} = SDP = new("local", Media),
+    Bin = list_to_binary([
+        "v=0\r\n"
+        "o=- ", integer_to_list(Id), " ", integer_to_list(Vsn), " IN IP4 local\r\n"
+        "s=nksip\r\n"
+        "t=0 0\r\n"
+        "m=audio 10000 RTP/AVP 0 1\r\n"
+        "c=IN IP4 domain1\r\n"
+        "a=rtpmap:0 Params0\r\n"
+        "a=rtpmap:1 Params1\r\n"
+        "a=sendrecv\r\n"
+        "m=video 10001 RTP/AVP 2 3\r\n"
+        "c=IN IP4 domain2\r\n"
+        "a=rtpmap:2 Params2\r\n"
+        "a=rtpmap:3 Params3\r\n"
+        "a=sendrecv\r\n"
+    ]),
+    ?assertMatch(Bin, unparse(SDP)).
 
 -endif.
-
-

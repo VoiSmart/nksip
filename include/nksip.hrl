@@ -149,22 +149,22 @@
     media :: binary(),                  % <<"audio">>, ...
     port = 0 :: inet:port_number(),
     nports = 1 :: integer(),
-    proto = <<"RTP/AVP">> :: binary(),      
+    proto = <<"RTP/AVP">> :: binary(),
     fmt = [] :: [binary()],             % <<"0">>, <<"101">> ...
-    info :: binary(),
-    connect :: nksip_sdp:address(),
+    info :: binary() | undefined,
+    connect = [] :: [nksip_sdp:address()],
     bandwidth = [] :: [binary()],
-    key :: binary(),
+    key :: binary() | undefined,
     attributes = [] :: [nksip_sdp:sdp_a()]
 }).
 
 -record(sdp, {
     sdp_vsn = <<"0">> :: binary(),
     user = <<"-">> :: binary(),
-    id = 0 :: non_neg_integer(), 
-    vsn = 0 :: non_neg_integer(), 
+    id = 0 :: non_neg_integer(),
+    vsn = 0 :: non_neg_integer(),
     address = {<<"IN">>, <<"IP4">>, <<"0.0.0.0">>} :: nksip_sdp:address(),
-    session = <<"nksip">> :: binary(), 
+    session = <<"nksip">> :: binary(),
     info :: binary(),
     uri :: binary(),
     email :: binary(),
@@ -196,17 +196,15 @@
 
 % Thks to http://rustyklophaus.com/articles/20110209-BeautifulErlangTiming.html
 -ifndef(TIMEON).
--define(TIMEON, 
+-define(TIMEON,
     erlang:put(debug_timer, [now()|
-                                case erlang:get(debug_timer) == undefined of 
-                                    true -> []; 
+                                case erlang:get(debug_timer) == undefined of
+                                    true -> [];
                                     false -> erlang:get(debug_timer) end])).
--define(TIMEOFF(Var), 
+-define(TIMEOFF(Var),
     io:format("~s :: ~10.2f ms : ~p~n", [
-        string:copies(" ", length(erlang:get(debug_timer))), 
+        string:copies(" ", length(erlang:get(debug_timer))),
         (timer:now_diff(now(), hd(erlang:get(debug_timer)))/1000), Var
-    ]), 
+    ]),
     erlang:put(debug_timer, tl(erlang:get(debug_timer)))).
 -endif.
-
-

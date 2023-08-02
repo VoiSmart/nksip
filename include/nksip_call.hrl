@@ -31,9 +31,11 @@
 
 -define(CALL_LOG(Type, Txt, Args), ?LOG(Type, "NkSIP CALL " ++ Txt, Args)).
 
+-define(CALL_LOG(Type, Txt, Args, Call), ?LOG(Type, "NkSIP CALL '~s' (~s) " ++ Txt, [Call#call.call_id, Call#call.srv_id | Args])).
+
 -type prack() :: {
-    RSeq::nksip:cseq(), 
-    CSeq::nksip:cseq(), 
+    RSeq::nksip:cseq(),
+    CSeq::nksip:cseq(),
     CSeqMethod:: nksip:method(),
     DialogId :: nksip_dialog_lib:id()
 }.
@@ -74,12 +76,12 @@
     request :: nksip:request(),
     method :: nksip:method(),
     opts :: nksip:optslist(),
-    uriset :: nksip:uri_set(),          
+    uriset :: nksip:uri_set(),
     uacs :: [integer()],
     pending :: [integer()],
-    responses :: [nksip:response()], 
+    responses :: [nksip:response()],
     final :: false | '2xx' | '6xx',
-    meta = [] :: nksip:optslist() 
+    meta = [] :: nksip:optslist()
 }).
 
 
@@ -90,9 +92,9 @@
 
 
 -type call_auth() :: {
-    nksip_dialog_lib:id(), 
-    nkpacket:nkport(), 
-    inet:ip_address(), 
+    nksip_dialog_lib:id(),
+    nkpacket:nkport(),
+    inet:ip_address(),
     inet:port_number()
 }.
 
@@ -107,7 +109,7 @@
 -record(call_times, {
     t1 :: integer(),
     t2 :: integer(),
-    t4 :: integer(), 
+    t4 :: integer(),
     tc :: integer(),
     trans :: integer(),
     dialog :: integer()
@@ -118,7 +120,7 @@
 %% - nksip_min_se: Pre-dialog received MinSE header
 
 -record(call, {
-    srv_id :: nkservice:package_id(),
+    srv_id :: nkserver:id(),
     srv_ref :: reference(),
     call_id :: nksip:call_id(),
     hibernate :: atom(),
@@ -152,6 +154,7 @@
     max_calls :: integer(),
     local_host :: auto | binary(),
     local_host6 :: auto | binary(),
+    tos :: integer(),
     debug :: [atom()],
     times :: #call_times{},
     udp_max_size :: integer()

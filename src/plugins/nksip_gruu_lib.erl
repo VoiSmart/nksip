@@ -32,7 +32,7 @@
 -define(AES_IV, <<"12345678abcdefgh">>).
 
 
-%% @private 
+%% @private
 -spec update_gruu(nksip:response()) ->
     ok.
 
@@ -95,8 +95,8 @@ find(SrvId, #uri{scheme=Scheme, user=User, domain=Domain, opts=Opts}) ->
                 Tmp when is_binary(Tmp) ->
                     {{Scheme1, User1, Domain1}, InstId, Pos} = binary_to_term(Tmp),
                     [
-                        nksip_registrar_lib:make_contact(Reg) 
-                        || #reg_contact{meta=Meta}=Reg 
+                        nksip_registrar_lib:make_contact(Reg)
+                        || #reg_contact{meta=Meta}=Reg
                         <- nksip_registrar_lib:get_info(SrvId, Scheme1, User1, Domain1),
                         nklib_util:get_value(nksip_gruu_instance_id, Meta)==InstId,
                         nklib_util:get_value(nksip_gruu_tmp_min, Meta, 0)=<Pos
@@ -111,8 +111,8 @@ find(SrvId, #uri{scheme=Scheme, user=User, domain=Domain, opts=Opts}) ->
                     nksip_registrar_lib:find(SrvId, Scheme, User, Domain);
                 InstId ->
                     [
-                        nksip_registrar_lib:make_contact(Reg) 
-                            || #reg_contact{meta=Meta}=Reg 
+                        nksip_registrar_lib:make_contact(Reg)
+                            || #reg_contact{meta=Meta}=Reg
                             <- nksip_registrar_lib:get_info(SrvId, Scheme, User, Domain),
                             nklib_util:get_value(nksip_gruu_instance_id, Meta)==InstId
                     ]
@@ -164,8 +164,8 @@ update_regcontact(RegContact, Base, Req, Opts) ->
             nklib_util:hash(Inst0)
     end,
     Expires = nklib_util:get_integer(<<"expires">>, ExtOpts),
-    case 
-        InstId /= <<>> andalso Expires>0 andalso 
+    case
+        InstId /= <<>> andalso Expires>0 andalso
         lists:member({gruu, true}, Opts)
     of
         true ->
@@ -177,8 +177,8 @@ update_regcontact(RegContact, Base, Req, Opts) ->
             end,
             {AORScheme, AORUser, AORDomain} = aor(To),
             PubUri = #uri{
-                scheme = AORScheme, 
-                user = AORUser, 
+                scheme = AORScheme,
+                user = AORUser,
                 domain = AORDomain,
                 opts = [{<<"gr">>, InstId}]
             },
@@ -215,7 +215,7 @@ decrypt(Bin) ->
 
 
 do_encrypt(Key, Bin) ->
-    crypto:crypto_one_time(aes_cfb128, Key, ?AES_IV, Bin, []).
+    crypto:crypto_one_time(aes_128_cfb128, Key, ?AES_IV, Bin, [{encrypt, true}]).
 
 do_decrypt(Key, Dec) ->
-    crypto:crypto_one_time(aes_cfb128, Key, ?AES_IV, Dec, []).
+    crypto:crypto_one_time(aes_128_cfb128, Key, ?AES_IV, Dec, [{encrypt, false}]).

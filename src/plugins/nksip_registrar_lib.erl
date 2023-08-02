@@ -41,14 +41,14 @@
 %% Types and records
 %% ===================================================================
 
--type index() :: 
+-type index() ::
     {
         Scheme::sip|sips,
-        NkPort::nkpacket:nkport(), 
+        NkPort::nkpacket:nkport(),
         User::binary(),
-        Domain::binary(), 
+        Domain::binary(),
         Port::inet:port_number()
-    } 
+    }
     |
     term(). %% Outbound plugin uses {ob, Instance::binary(), RegId::binary()}.
 
@@ -81,8 +81,8 @@ find(SrvId, Scheme, User, Domain) ->
 
 qfind(SrvId, Scheme, User, Domain) ->
     All = [
-        {1/Q, Updated, make_contact(Reg)} || 
-        #reg_contact{q=Q, updated=Updated} = Reg 
+        {1/Q, Updated, make_contact(Reg)} ||
+        #reg_contact{q=Q, updated=Updated} = Reg
         <- get_info(SrvId, Scheme, User, Domain)
     ],
     qfind_iter(lists:sort(All), []).
@@ -127,15 +127,15 @@ is_registered([], _) ->
 is_registered([
                 #reg_contact{
                     nkport = #nkport{transp=Transp, remote_ip=Ip, remote_port=Port}}
-                | _ ], 
+                | _ ],
                 #nkport{transp=Transp, remote_ip=Ip, remote_port=Port}) ->
     true;
 
-% If a TCP es registered, the transport source port is probably going to be 
+% If a TCP es registered, the transport source port is probably going to be
 % different then the registered, so it is not going to work.
-% When outbound is implemented this will be reworked 
+% When outbound is implemented this will be reworked
 is_registered([
-                #reg_contact{contact=Contact}|R], 
+                #reg_contact{contact=Contact}|R],
                 #nkport{transp=Transp, remote_ip=Ip, remote_port=Port}=NkPort) ->
     case nksip_parse:transport(Contact) of
         {Transp, Domain, Port} ->
@@ -227,7 +227,7 @@ update(Req, Times, Opts) ->
     {ok, Regs} = store_get(SrvId, AOR),
     RegContacts0 = [
         RegContact ||
-        #reg_contact{expire=Exp} = RegContact <- Regs, 
+        #reg_contact{expire=Exp} = RegContact <- Regs,
         Exp > Now
     ],
     RegContacts = update_regcontacts(Contacts, Req, Times, Path, Opts, RegContacts0),
@@ -255,7 +255,7 @@ update(Req, Times, Opts) ->
 
 
 %% @private Extracts from each contact a index, uri, expire time and q
--spec update_regcontacts([#uri{}], nksip:request(), #nksip_registrar_time{}, 
+-spec update_regcontacts([#uri{}], nksip:request(), #nksip_registrar_time{},
                          [nksip:uri()], nksip:optslist(), [#reg_contact{}]) ->
     [#reg_contact{}].
 
@@ -349,14 +349,14 @@ update_regcontacts([Contact|Rest], Req, Times, Path, Opts, Acc) ->
                 index = Index,
                 contact = Contact#uri{ext_opts=ExtOpts1},
                 updated = LongNow,
-                expire = Now + Expires, 
+                expire = Now + Expires,
                 q = Q,
                 call_id = CallId,
                 cseq = CSeq,
                 nkport = NkPort,
                 path = Path
             },
-            {continue, [RegContact1, _, _, _]} = 
+            {continue, [RegContact1, _, _, _]} =
                  ?CALL_SRV(SrvId, nksip_registrar_update_regcontact, [RegContact, Base, Req, Opts]),
             [RegContact1|Acc1]
     end,
@@ -377,7 +377,7 @@ make_contact(#reg_contact{contact=Contact, path=[]}) ->
 make_contact(#reg_contact{contact=Contact, path=Path}) ->
     #uri{headers=Headers} = Contact,
     Route1 = nklib_unparse:uri(Path),
-    Routes2 = list_to_binary(http_uri:encode(binary_to_list(Route1))),
+    Routes2 = list_to_binary(uri_string:quote(binary_to_list(Route1))),
     Headers1 = [{<<"route">>, Routes2}|Headers],
     Contact#uri{headers=Headers1, ext_opts=[], ext_headers=[]}.
 
@@ -455,7 +455,7 @@ store_del_all(SrvId) ->
     ok.
 
 
-%% @private 
+%% @private
 -spec callback(nkserver:id(), term()) ->
     term() | error.
 
@@ -466,4 +466,3 @@ callback(SrvId, Op) ->
         _ ->
             error
     end.
-
